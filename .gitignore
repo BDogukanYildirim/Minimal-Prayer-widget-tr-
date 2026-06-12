@@ -1,0 +1,46 @@
+# Derleme çıktıları
+bin/
+obj/
+
+# Visual Studio cache/options
+.vs/
+
+# Kullanıcı-spesifik dosyalar
+*.user
+*.userprefs
+*.suo
+*.sln.docstates
+
+# NuGet
+packages/
+.nuget/
+
+# Derleme dosyaları
+*.o
+*.a
+*.so
+*.dll
+*.exe
+*.exe.config
+*.pdb
+
+# Log dosyaları
+*.log
+*.txt
+
+# IDE dosyaları
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS dosyaları
+.DS_Store
+Thumbs.db
+
+# Geçici dosyalar
+*.tmp
+*.temp
+
+# Publish profilleri
+PublishProfiles/
