@@ -18,6 +18,7 @@ namespace Namazpc
     {
         private Label lblVakit;
         private Label lblSure;
+        private Label lblKonum;
         private System.Windows.Forms.Timer mainTimer;
 
         private double lat = 0, lng = 0;
@@ -92,7 +93,8 @@ namespace Namazpc
             this.DoubleBuffered = true;
 
             lblVakit = new Label { AutoSize = true, ForeColor = Color.Cyan, Font = new Font("Segoe UI", fontVakitSize, FontStyle.Bold), Text = "Başlatılıyor...", TextAlign = ContentAlignment.MiddleCenter };
-            lblSure = new Label { AutoSize = true, ForeColor = Color.White, Font = new Font("Segoe UI", fontSureSize, FontStyle.Bold), Text = "...", TextAlign = ContentAlignment.MiddleCenter };
+            lblSure  = new Label { AutoSize = true, ForeColor = Color.White, Font = new Font("Segoe UI", fontSureSize, FontStyle.Bold), Text = "...", TextAlign = ContentAlignment.MiddleCenter };
+            lblKonum = new Label { AutoSize = true, ForeColor = Color.FromArgb(140, 140, 160), Font = new Font("Segoe UI", 8f, FontStyle.Regular), Text = "", TextAlign = ContentAlignment.MiddleCenter };
 
             btnOnayla = new Button { Text = "Onayla", Size = new Size(95, 35), Visible = false, FlatStyle = FlatStyle.Flat, BackColor = Color.SeaGreen, ForeColor = Color.White, Font = new Font("Segoe UI", 10, FontStyle.Bold), Cursor = Cursors.Hand };
             btnOnayla.FlatAppearance.BorderSize = 0;
@@ -102,12 +104,13 @@ namespace Namazpc
             btnReddet.FlatAppearance.BorderSize = 0;
             btnReddet.Click += (s, e) => { soruEkraniAktif = false; kullaniciCevrimdisiReddetti = true; };
 
-            this.Controls.Add(lblVakit); this.Controls.Add(lblSure);
+            this.Controls.Add(lblVakit); this.Controls.Add(lblSure); this.Controls.Add(lblKonum);
             this.Controls.Add(btnOnayla); this.Controls.Add(btnReddet);
 
             this.MouseDown += FormMouseOlaylari;
             lblVakit.MouseDown += FormMouseOlaylari;
-            lblSure.MouseDown += FormMouseOlaylari;
+            lblSure.MouseDown  += FormMouseOlaylari;
+            lblKonum.MouseDown += FormMouseOlaylari;
             this.MouseWheel += FareTekerlegiIleOlcekle;
             this.FormClosing += (s, e) => AyarlariKaydet();
         }
@@ -368,6 +371,18 @@ namespace Namazpc
             }
 
             lblSure.Text = string.Format("{0:D2}:{1:D2}:{2:D2}", diff.Hours, diff.Minutes, diff.Seconds);
+
+            // Konum etiketi
+            if (!string.IsNullOrEmpty(guncelAyarlar.SonSehir))
+            {
+                lblKonum.Text = "📍 " + guncelAyarlar.SonSehir;
+                lblKonum.Visible = true;
+            }
+            else
+            {
+                lblKonum.Visible = false;
+            }
+
             DinamikHizala();
         }
 
@@ -427,14 +442,13 @@ namespace Namazpc
 
         private void DinamikHizala()
         {
-            int targetWidth = Math.Max(lblVakit.Width, lblSure.Width) + 60;
-            int targetHeight = lblSure.Bottom + 18;
+            int targetWidth = Math.Max(Math.Max(lblVakit.Width, lblSure.Width), lblKonum.Visible ? lblKonum.Width : 0) + 30;
+            int targetHeight = (lblKonum.Visible ? lblKonum.Bottom : lblSure.Bottom) + 12;
 
             lblVakit.Location = new Point((targetWidth - lblVakit.Width) / 2, 12);
-            lblSure.Location = new Point((targetWidth - lblSure.Width) / 2, lblVakit.Bottom - 5);
+            lblSure.Location  = new Point((targetWidth - lblSure.Width) / 2, lblVakit.Bottom - 5);
+            lblKonum.Location = new Point((targetWidth - lblKonum.Width) / 2, lblSure.Bottom + 1);
 
-            // YENİ: Sadece formun dış çerçevesi büyüyüp küçülürse Invalidate() çağırılır. 
-            // Saniye akarken boyut değişmiyorsa arka plan baştan çizilmez, bozulmalar yok olur.
             if (this.Width != targetWidth || this.Height != targetHeight)
             {
                 this.Size = new Size(targetWidth, targetHeight);
@@ -474,7 +488,7 @@ namespace Namazpc
             lblSure.Font = new Font("Segoe UI", fontSureSize, FontStyle.Bold);
 
             // Fareyle büyütüp küçültürken formun boyutları zorla değiştiği için burada manuel tetikliyoruz.
-            int w = Math.Max(lblVakit.Width, lblSure.Width) + 60;
+            int w = Math.Max(lblVakit.Width, lblSure.Width) + 30;
             this.Size = new Size(w, lblSure.Bottom + 18);
             this.Invalidate();
             DinamikHizala();
@@ -484,9 +498,7 @@ namespace Namazpc
         {
             try
             {
-                string ezanYolu = Path.Combine(
-                    Path.GetDirectoryName(System.Reflection.Assembly.GetExecutingAssembly().Location) ?? "",
-                    "ezan.mp3");
+                string ezanYolu = Path.Combine(AppContext.BaseDirectory, "ezan.mp3");
 
                 if (!File.Exists(ezanYolu)) return;
 
@@ -509,9 +521,7 @@ namespace Namazpc
         {
             try
             {
-                string hedefYol = Path.Combine(
-                    Path.GetDirectoryName(System.Reflection.Assembly.GetExecutingAssembly().Location) ?? "",
-                    "ezan.mp3");
+                string hedefYol = Path.Combine(AppContext.BaseDirectory, "ezan.mp3");
                 File.Copy(kaynakYol, hedefYol, overwrite: true);
             }
             catch (Exception ex)
