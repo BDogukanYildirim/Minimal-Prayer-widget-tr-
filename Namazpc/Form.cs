@@ -10,6 +10,7 @@ using System.Threading.Tasks;
 using System.Globalization;
 using System.Media;
 using System.IO;
+using System.Diagnostics;
 
 namespace Namazpc
 {
@@ -35,6 +36,13 @@ namespace Namazpc
         private DateTime[] vakitler = new DateTime[6];
         private string[] vakitIsimleri = { "İmsak", "Güneş", "Öğle", "İkindi", "Akşam", "Yatsı" };
 
+        // Ezan: hangi vakitlerde ezan çalındı (gün başına sıfırlanır)
+        private bool[] ezanCalindi = new bool[6];
+        private DateTime sonEzanGunu = DateTime.MinValue;
+
+        [DllImport("winmm.dll", CharSet = CharSet.Auto)]
+        private static extern int mciSendString(string command, System.Text.StringBuilder returnString, int returnLength, IntPtr hwndCallback);
+
         public Color VakitRengi { get { return lblVakit.ForeColor; } set { lblVakit.ForeColor = value; } }
         public Color SureRengi { get { return lblSure.ForeColor; } set { lblSure.ForeColor = value; } }
         private Color _sinirRengi = Color.DodgerBlue;
@@ -44,6 +52,18 @@ namespace Namazpc
         {
             get { return guncelAyarlar.GosterimModu; }
             set { guncelAyarlar.GosterimModu = value; AyarlariKaydet(); }
+        }
+
+        public bool EzanAktifMi
+        {
+            get { return guncelAyarlar.EzanAktif; }
+            set { guncelAyarlar.EzanAktif = value; AyarlariKaydet(); }
+        }
+
+        public bool HerZamanUsteMi
+        {
+            get { return guncelAyarlar.HerZamanUste; }
+            set { guncelAyarlar.HerZamanUste = value; this.TopMost = value; AyarlariKaydet(); }
         }
 
         private string ayarlarYolu = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Namazpc", "ayarlar.json");
@@ -292,14 +312,50 @@ namespace Namazpc
             DateTime simdi = DateTime.Now;
             int siradakiIdx = -1;
 
+            // Gün değiştiyse ezan takip dizisini sıfırla
+            if (simdi.Date != sonEzanGunu.Date)
+            {
+                ezanCalindi = new bool[6];
+                sonEzanGunu = simdi;
+            }
+
             for (int i = 0; i < vakitler.Length; i++)
             {
                 if (simdi < vakitler[i]) { siradakiIdx = i; break; }
             }
 
-            if (siradakiIdx == -1) { siradakiIdx = 0; vakitler[0] = vakitler[0].AddDays(1); }
+            if (siradakiIdx == -1)
+            {
+                // Gece yarısı geçişi: Ertesi günün vakitlerini yükle
+                string yarınStr = DateTime.Now.ToString("dd_MM_yyyy");
+                if (guncelVakitler.ContainsKey(yarınStr))
+                {
+                    VakitleriAta(yarınStr);
+                }
+                else
+                {
+                    // Sözlükte yoksa tüm vakitlere 1 gün ekle (geçici)
+                    for (int j = 0; j < vakitler.Length; j++)
+                        vakitler[j] = vakitler[j].AddDays(1);
+                }
+                siradakiIdx = 0;
+                // Arka planda yeni günün verilerini çek
+                _ = KonumVeVakitCek();
+            }
 
             int suankiIdx = (siradakiIdx - 1 + 6) % 6;
+
+            // Ezan: geçen vakit (suankiIdx) için ezan çal (ilk 0. saniyesinde)
+            if (guncelAyarlar.EzanAktif && suankiIdx >= 0 && !ezanCalindi[suankiIdx])
+            {
+                TimeSpan gecen = simdi - vakitler[suankiIdx];
+                if (gecen.TotalSeconds >= 0 && gecen.TotalSeconds < 3)
+                {
+                    ezanCalindi[suankiIdx] = true;
+                    EzanCal();
+                }
+            }
+
             TimeSpan diff = vakitler[siradakiIdx] - simdi;
 
             if (guncelAyarlar.GosterimModu == 0)
@@ -325,6 +381,7 @@ namespace Namazpc
                     this.BackColor = Color.FromArgb(guncelAyarlar.ArkaPlan); _sinirRengi = Color.FromArgb(guncelAyarlar.Cerceve);
                     lblVakit.ForeColor = Color.FromArgb(guncelAyarlar.Vakit); lblSure.ForeColor = Color.FromArgb(guncelAyarlar.Sure);
                     fontVakitSize = guncelAyarlar.VakitBoyutu; fontSureSize = guncelAyarlar.SureBoyutu;
+                    this.TopMost = guncelAyarlar.HerZamanUste;
                     if (guncelAyarlar.KonumX != -1) { this.Location = new Point(guncelAyarlar.KonumX, guncelAyarlar.KonumY); ilkKonumAyarlandi = true; }
                 }
 
@@ -423,6 +480,46 @@ namespace Namazpc
             DinamikHizala();
         }
 
+        private void EzanCal()
+        {
+            try
+            {
+                string ezanYolu = Path.Combine(
+                    Path.GetDirectoryName(System.Reflection.Assembly.GetExecutingAssembly().Location) ?? "",
+                    "ezan.mp3");
+
+                if (!File.Exists(ezanYolu)) return;
+
+                // Önceki çalmayı durdur ve kapat
+                mciSendString("close ezan", null, 0, IntPtr.Zero);
+                // Yeni dosyayı aç
+                mciSendString($"open \"{ezanYolu}\" type mpegvideo alias ezan", null, 0, IntPtr.Zero);
+                // Çal
+                mciSendString("play ezan", null, 0, IntPtr.Zero);
+            }
+            catch { }
+        }
+
+        public void EzanDurdur()
+        {
+            try { mciSendString("stop ezan", null, 0, IntPtr.Zero); mciSendString("close ezan", null, 0, IntPtr.Zero); } catch { }
+        }
+
+        public void EzanDosyasiAyarla(string kaynakYol)
+        {
+            try
+            {
+                string hedefYol = Path.Combine(
+                    Path.GetDirectoryName(System.Reflection.Assembly.GetExecutingAssembly().Location) ?? "",
+                    "ezan.mp3");
+                File.Copy(kaynakYol, hedefYol, overwrite: true);
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"Dosya kopyalanamıyor: {ex.Message}", "Hata", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
+        }
+
         [DllImport("user32.dll")] private static extern bool ReleaseCapture();
         [DllImport("user32.dll")] private static extern int SendMessage(IntPtr h, int m, int w, int l);
         private void FormMouseOlaylari(object sender, MouseEventArgs e)
@@ -445,5 +542,7 @@ namespace Namazpc
         public string SonSehir { get; set; } = "";
         public DateTime SonGuncelleme { get; set; } = DateTime.MinValue;
         public int GosterimModu { get; set; } = 0;
+        public bool EzanAktif { get; set; } = true;
+        public bool HerZamanUste { get; set; } = true;
     }
 }

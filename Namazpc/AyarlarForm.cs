@@ -7,7 +7,7 @@ namespace Namazpc
     public class AyarlarForm : Form
     {
         private Form1 anaWidget;
-        private Button btnArkaPlan, btnCerceveRengi, btnVakitRengi, btnSureRengi, btnGosterimModu, btnAyarlariKapat, btnCikis;
+        private Button btnArkaPlan, btnCerceveRengi, btnVakitRengi, btnSureRengi, btnGosterimModu, btnHerZamanUste, btnEzan, btnEzanDosya, btnAyarlariKapat, btnCikis;
 
         public AyarlarForm(Form1 form)
         {
@@ -18,12 +18,11 @@ namespace Namazpc
         private void ArayuzAyarla()
         {
             this.Text = "Ayarlar";
-            // Yeni butona yer açmak için form boyunu 440'a uzattık
-            this.Size = new Size(260, 440); 
+            this.Size = new Size(260, 610);
             this.StartPosition = FormStartPosition.CenterScreen;
             this.FormBorderStyle = FormBorderStyle.FixedToolWindow;
-            this.BackColor = Color.FromArgb(45, 45, 45); 
-            this.TopMost = true; 
+            this.BackColor = Color.FromArgb(45, 45, 45);
+            this.TopMost = true;
 
             btnArkaPlan = OlusturButon("Arka Plan Rengini Değiştir", 20);
             btnArkaPlan.Click += (s, e) => {
@@ -59,22 +58,68 @@ namespace Namazpc
                 btnGosterimModu.Text = anaWidget.GosterimModu == 0 ? "Mod: Mevcut Vakit" : "Mod: Hedef Vakit";
             };
 
-            btnAyarlariKapat = OlusturButon("Ayarları Kapat", 295);
+            btnAyarlariKapat = OlusturButon("Ayarları Kapat", 460);
             btnAyarlariKapat.BackColor = Color.Gray; 
             btnAyarlariKapat.Click += (s, e) => this.Close();
 
-            btnCikis = OlusturButon("Uygulamayı Kapat", 350);
+            btnCikis = OlusturButon("Uygulamayı Kapat", 515);
             btnCikis.BackColor = Color.IndianRed; 
             btnCikis.Click += (s, e) => Application.Exit(); 
+
+            // Her Zaman Üste toggle butonu
+            bool hzu = anaWidget.HerZamanUsteMi;
+            btnHerZamanUste = OlusturButon(HzuButonMetni(hzu), 295);
+            btnHerZamanUste.BackColor = hzu ? Color.FromArgb(30, 100, 150) : Color.FromArgb(70, 70, 70);
+            btnHerZamanUste.Click += (s, e) =>
+            {
+                anaWidget.HerZamanUsteMi = !anaWidget.HerZamanUsteMi;
+                btnHerZamanUste.Text = HzuButonMetni(anaWidget.HerZamanUsteMi);
+                btnHerZamanUste.BackColor = anaWidget.HerZamanUsteMi ? Color.FromArgb(30, 100, 150) : Color.FromArgb(70, 70, 70);
+            };
+
+            // Ezan Sesi toggle butonu
+            bool ezanAktif = anaWidget.EzanAktifMi;
+            btnEzan = OlusturButon(EzanButonMetni(ezanAktif), 350);
+            btnEzan.BackColor = ezanAktif ? Color.FromArgb(30, 130, 90) : Color.FromArgb(100, 40, 40);
+            btnEzan.Click += (s, e) =>
+            {
+                anaWidget.EzanAktifMi = !anaWidget.EzanAktifMi;
+                btnEzan.Text = EzanButonMetni(anaWidget.EzanAktifMi);
+                btnEzan.BackColor = anaWidget.EzanAktifMi ? Color.FromArgb(30, 130, 90) : Color.FromArgb(100, 40, 40);
+                if (!anaWidget.EzanAktifMi) anaWidget.EzanDurdur();
+            };
+
+            // Ezan dosyası seç butonu
+            btnEzanDosya = OlusturButon("Ezan Dosyası Seç (MP3)", 405);
+            btnEzanDosya.BackColor = Color.FromArgb(60, 80, 120);
+            btnEzanDosya.Click += (s, e) =>
+            {
+                using (OpenFileDialog ofd = new OpenFileDialog())
+                {
+                    ofd.Filter = "MP3 Dosyaları|*.mp3|Tüm Dosyalar|*.*";
+                    ofd.Title = "Ezan sesi dosyasını seçin";
+                    if (ofd.ShowDialog() == DialogResult.OK)
+                    {
+                        anaWidget.EzanDosyasiAyarla(ofd.FileName);
+                        MessageBox.Show("Ezan dosyası ayarlandı!", "Başarılı", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                    }
+                }
+            };
 
             this.Controls.Add(btnArkaPlan);
             this.Controls.Add(btnCerceveRengi); 
             this.Controls.Add(btnVakitRengi);
             this.Controls.Add(btnSureRengi);
-            this.Controls.Add(btnGosterimModu); // Eklenen buton
+            this.Controls.Add(btnGosterimModu);
+            this.Controls.Add(btnHerZamanUste);
+            this.Controls.Add(btnEzan);
+            this.Controls.Add(btnEzanDosya);
             this.Controls.Add(btnAyarlariKapat);
             this.Controls.Add(btnCikis);
         }
+
+        private string HzuButonMetni(bool aktif) => aktif ? "📌 Her Zaman Üste: AÇIK" : "📌 Her Zaman Üste: KAPALI";
+        private string EzanButonMetni(bool aktif) => aktif ? "🔔 Ezan Sesi: AÇIK" : "🔕 Ezan Sesi: KAPALI";
 
         private Button OlusturButon(string text, int yPozisyonu)
         {
